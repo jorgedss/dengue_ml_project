@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "ipykernel>=7.2.0",
+    "jinja2>=3.1.6",
     "joblib>=1.4.0",
     # Stack numérica fixada nas versões da dissertação (iris_study) para reprodutibilidade:
     # o salto scikit-learn 1.8.0 -> 1.9.0 altera o RandomForest e o resultado do GridSearch.
