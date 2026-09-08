@@ -9,6 +9,11 @@ import numpy as np
 import pandas as pd
 from pysus.preprocessing.decoders import decodifica_idade_SINAN
 
+try:  # execucao via pacote (python main.py)
+    from utils.clean_data import DATE_COLS
+except ImportError:  # execucao direta (python utils/treat_data.py)
+    from clean_data import DATE_COLS
+
 INPUT_PATH = "data/raw/dengue_hospitalized.parquet"
 OUTPUT_PATH = "data/processed/dengue_treated.parquet"
 
@@ -51,6 +56,15 @@ def remap_binary_sinan(series: pd.Series) -> pd.Series:
 
 
 def treat(df: pd.DataFrame) -> pd.DataFrame:
+    # ── 0. Datas: 'YYYYMMDD' → datetime64 ────────────────────────────────────
+    # Antes de tudo: o passo 6 normaliza colunas object e corromperia as datas
+    # se elas ainda fossem string.
+    for col in DATE_COLS:
+        if col in df.columns:
+            df[col] = pd.to_datetime(
+                df[col].astype(str).str.strip(), format="%Y%m%d", errors="coerce"
+            )
+
     # ── 1. Target ─────────────────────────────────────────────────────────────
     df["target"] = build_target(df)
     df = df.drop(columns=["EVOLUCAO"])

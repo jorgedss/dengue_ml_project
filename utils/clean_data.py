@@ -14,6 +14,10 @@ YEARS = [2020, 2021, 2022, 2023, 2024, 2025]
 
 EVOLUCAO_VALID = {"1", "2"}  # 1 = cura, 2 = óbito por dengue
 
+# Criterio de inclusao: dengue confirmada. Ficam de fora 5 (descartado),
+# 8 (inconclusivo), 9 (ignorado) e o campo em branco.
+CLASSI_CONFIRMED = {"10", "11", "12"}
+
 FEATURES = [
     "CS_SEXO", "CS_GESTANT", "CS_RACA", "CS_ESCOL_N", "SG_UF", "SEM_PRI", "NU_IDADE_N",
     "FEBRE", "MIALGIA", "CEFALEIA", "EXANTEMA", "VOMITO", "NAUSEA",
@@ -29,21 +33,39 @@ FEATURES = [
     "GRAV_SANG", "GRAV_AST", "GRAV_MIOC", "GRAV_CONSC", "GRAV_ORGAO",
 ]
 
-# Columns read from the file: features + filter columns
-READ_COLS = FEATURES + ["HOSPITALIZ", "EVOLUCAO"]
+# Metadados: viajam junto com a coorte para permitir auditoria e analise de
+# features, mas NUNCA entram em X. A exclusao e feita em split_data.py, que
+# importa METADATA_COLS daqui.
+DATE_COLS = [
+    "DT_NOTIFIC", "DT_SIN_PRI", "DT_ALRM", "DT_GRAV", "DT_INVEST",
+    "DT_ENCERRA", "DT_OBITO", "DT_INTERNA", "DT_DIGITA",
+]
+
+# CLASSI_FIN e metadado pelo mesmo motivo que as datas, e por um adicional:
+# e atribuida no encerramento do caso, e o codigo 12 tem 52% de letalidade.
+# Como preditor seria vazamento direto do alvo.
+METADATA_COLS = DATE_COLS + ["CLASSI_FIN"]
+
+# Columns read from the file: features + metadata + filter columns
+READ_COLS = FEATURES + METADATA_COLS + ["HOSPITALIZ", "EVOLUCAO"]
 
 
-def filter_chunk(df: pd.DataFrame) -> pd.DataFrame:
-    if "HOSPITALIZ" not in df.columns or "EVOLUCAO" not in df.columns:
-        return pd.DataFrame()
+def filter_chunk(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Coorte + quantos registros havia antes do filtro de CLASSI_FIN."""
+    obrigatorias = {"HOSPITALIZ", "EVOLUCAO", "CLASSI_FIN"}
+    if not obrigatorias.issubset(df.columns):
+        return pd.DataFrame(), 0
 
-    df["HOSPITALIZ"] = df["HOSPITALIZ"].astype(str).str.strip()
-    df["EVOLUCAO"] = df["EVOLUCAO"].astype(str).str.strip()
+    for col in obrigatorias:
+        df[col] = df[col].astype(str).str.strip()
 
     df = df[df["HOSPITALIZ"] == "1"]
     df = df[df["EVOLUCAO"].isin(EVOLUCAO_VALID)]
+    n_desfecho = len(df)
 
-    return df.drop(columns=["HOSPITALIZ"])
+    df = df[df["CLASSI_FIN"].isin(CLASSI_CONFIRMED)]
+
+    return df.drop(columns=["HOSPITALIZ"]), n_desfecho
 
 
 def process_year(year: int) -> pd.DataFrame | None:
@@ -59,11 +81,13 @@ def process_year(year: int) -> pd.DataFrame | None:
     df = pd.read_parquet(path, columns=cols, engine="pyarrow")
     n_raw = len(df)
 
-    df = filter_chunk(df)
+    df, n_desfecho = filter_chunk(df)
 
-    n_filtered = len(df)
-    pct = n_filtered / n_raw * 100 if n_raw > 0 else 0
-    print(f"  Brutos: {n_raw:,} | Internados c/ desfecho: {n_filtered:,} ({pct:.2f}%)")
+    n_final = len(df)
+    n_removidos = n_desfecho - n_final
+    pct_rem = n_removidos / n_desfecho * 100 if n_desfecho > 0 else 0
+    print(f"  Brutos: {n_raw:,} | Internados c/ desfecho: {n_desfecho:,}")
+    print(f"  Dengue confirmada: {n_final:,} | Removidos por CLASSI_FIN: {n_removidos:,} ({pct_rem:.2f}%)")
     print(f"  EVOLUCAO: {df['EVOLUCAO'].value_counts().to_dict()}")
 
     return df if not df.empty else None
