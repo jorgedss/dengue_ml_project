@@ -47,6 +47,11 @@ Etapas (também executáveis individualmente):
 > Os diretórios `data/` e `output/` não são versionados; são regenerados pela execução
 > do pipeline e dos notebooks.
 
+As bases do SINAN passam por atualizações recorrentes, de modo que uma nova execução de
+`utils/download_data.py` pode não reproduzir exatamente os dados usados neste estudo.
+Para garantir a reprodutibilidade, os dados extraídos para o estudo estão arquivados em
+[osf.io/ap5t3](https://osf.io/ap5t3/overview).
+
 ## Notebooks
 
 - **01_models/** — cada notebook contém o fluxo completo de um modelo: carregamento,
